@@ -37,10 +37,10 @@ Pinagem (para todos os displays com pinos comuns conectados):
 				   	   PC4 -> E, PC5 -> F,
 				   	   PC6 -> G, PC7 -> P;
 
-				   	PC8  -> Catodo Comum 1;
-				   	PC9  -> Catodo Comum 2;
-				   	PC10 -> Catodo Comum 3;
-				   	PC11 -> Catodo Comum 4;
+				   	PC8  -> Base Transistor 1;
+				   	PC9  -> Base Transistor 2;
+				   	PC10 -> Base Transistor 3;
+				   	PC11 -> Base Transistor 4;
 
 Tabela de caracteres para o display de 7 segmentos:
 
