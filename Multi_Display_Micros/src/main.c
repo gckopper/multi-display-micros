@@ -11,43 +11,108 @@
 **===========================================================================
 **
 
-Este programa transmite um sinal monostável (temporizado) que dura 0,5 s para um
-LED (conectado à PC1) ao passar 1 s após o botão (conectado à PC0) ter sido
-pressionado. Se o botão for pressionado durante o período em que o LED está ligado,
-nada acontece, esse só liga o LED enquanto ele estiver desligado, não estendendo o
-tempo de ativação do LED. Ao apertar-se o botão, independentemente do momento, um LED
-verde (conectado à PC2) é ligado por 75 ms.
+Este programa realiza a exibição de uma mensagem, configurável por funções e por
+macros, através de um número pré-definido de displays de 7 segmentos. O programa
+realiza isso através da multiplexação dos catodos de cada display. A frequência
+de multiplexação utilizada neste programa é de 1 kHz, podendo-se utilizar, assim
+até 40 displays para exibir mensagens. As mensagens são exibidas com os caracteres
+descritos na tabela abaixo.
 
-Pinagem:
+Pinagem (para todos os displays com pinos comuns conectados):
 
-Botão -> PC0
-LED Azul -> PC1
-LED Verde -> PC2
+				   Displays de 7 segmentos:
+
+							  A
+							-----
+						  F| 	 |B
+						   |  G  |
+						    -----
+						  E|	 |C
+						   |	 |
+						    -----
+						      D    * P
+
+				   	   PC0 -> A, PC1 -> B,
+				   	   PC2 -> C, PC3 -> D,
+				   	   PC4 -> E, PC5 -> F,
+				   	   PC6 -> G, PC7 -> P;
+
+				   	PC8  -> Catodo Comum 1;
+				   	PC9  -> Catodo Comum 2;
+				   	PC10 -> Catodo Comum 3;
+				   	PC11 -> Catodo Comum 4;
+
+Tabela de caracteres para o display de 7 segmentos:
+
+CARACTERE			BINÁRIO (Pinos de P a A do display)				HEXADECIMAL
+0					0 0 1 1 1 1 1 1									0x3F
+1					0 0 0 0 0 1 1 0									0x6
+2					0 1 0 1 1 0 1 1									0x5B
+3					0 1 0 0 1 1 1 1									0x4F
+4					0 1 1 0 0 1 1 0									0x66
+5					0 1 1 0 1 1 0 1									0x6D
+6					0 1 1 1 1 1 0 1									0x7D
+7					0 0 0 0 0 1 1 1									0x7
+8					0 1 1 1 1 1 1 1									0x7F
+9					0 1 1 0 1 1 1 1									0x6F
+A					0 1 1 1 0 1 1 1									0x77
+B					0 1 1 1 1 1 0 0									0x7C
+C					0 0 1 1 1 0 0 1									0x39
+D					0 1 0 1 1 1 1 0									0x5E
+E					0 1 1 1 1 0 0 1									0x79
+F					0 1 1 1 0 0 0 1									0x71
+G					0 0 1 1 1 1 0 1									0x3D
+H					0 1 1 1 0 1 0 0									0x74
+I					0 0 1 1 0 0 0 0									0x30
+J					0 0 0 1 1 1 1 0									0x1E
+K					0 1 1 1 0 1 0 1									0x75
+L					0 0 1 1 1 0 0 0									0x38
+M					0 0 0 1 0 1 0 1									0x15
+N					0 0 1 1 0 1 1 1									0x37
+O					0 1 0 1 1 1 0 0									0x5C
+P					0 1 1 1 0 0 1 1									0x73
+Q					0 1 1 0 0 1 1 1									0x67
+R					0 0 1 1 0 0 1 1									0x33
+S					0 1 1 0 1 0 0 1									0x69
+T					0 1 1 1 1 0 0 0									0x78
+U					0 0 1 1 1 1 1 0									0x3E
+V					0 0 1 0 1 1 1 0									0x2E
+W					0 0 1 0 1 0 1 0									0x2A
+X					0 1 1 1 0 1 1 0									0x76
+Y					0 1 1 0 1 1 1 0									0x6E
+Z					0 1 0 0 1 0 1 1									0x4B
+(espaço)			0 0 0 0 0 0 0 0									0x00
+.					1 0 0 0 0 0 0 0									0x80
+;					1 0 0 0 0 0 1 0									0x82
+!					1 0 0 0 0 1 1 0									0x83
+-					0 1 0 0 0 0 0 0									0x40
+_					0 0 0 0 1 0 0 0									0x04
+‘					0 0 1 0 0 0 0 0									0x20
+“					0 0 1 0 0 0 1 0									0x22
+
 
 Dimensionamento dos componentes externos:
 
-Resistor de 150 R ->   Como o LED azul drena 2,5 V (medido pelo voltímetro),
-					   tem-se 3,3 V - 2,5 V no resistor (0,8 V). Estabeleceu-se
-					   uma corrente próxima de 5 mA para o LED e, assim, 0,8 V
-					   divididos por 5 mA resulta em 160 R, portanto, um resistor
-					   de 150 R é suficiente.
+Transistores BC547	 -> Com Vcemáx de 45 V, Pcmáx de 500 mW, Icmáx de 100 mA,
+						hfemin de 110 e ainda fmáx de 300 MHz, é o transistor
+						ideal em termos de preço e funcionalidade para amplificar
+						a corrente no catodo dos displays, bem como inverter o
+						sinal de controle para conseguir fazer o respectivo display
+						funcionar com sinal alto.
 
-Resistor de 270 R ->   Como o LED verde tem em torno de 1,8 V (medido pelo
-				       voltímetro) sobr ele, tem-se 3,3 V - 1,8 V no
-				       resistor (1,5 V). Estabeleceu-se uma corrente
-				       próxima de 5 mA para o LED e, assim, 1,5 V
-				       dividido por 5 mA resulta em 300 R, portanto, um
-				       resistor de 270 R é próximo o suficiente.
+Resistores de 4700 R -> A corrente nos coletores dos transistors, considerando que,
+						em cada segmento pode ter 5,56 mA (devido ao resistor de 270 R),
+						é de no máximo 44,44 mA. Com isso, considerando o valor mínimo
+						de hfe do transistor (110), tem-se, no máximo, 0,40404 mA assim,
+						considerando Vbe como 0,7 V, o máximo valor de Rb é de
+						(3,3 V - 0,7 V) / 0,40404 mA = 6435 R. Assim, resistores de 4k7
+						são mais que suficientes.
 
-Abaixo, o raciocínio para se configurar o TIM11 que é responsável pelo
-debouncing do botão:
-
-O debouncing, neste programa, funciona a cada passagem de tempo determinada, ou seja,
-a cada contagem de um timer, o programa checa o estado do botão e compara com o estado
-registrado no final da contagem anterior. Portanto, quanto menor for o tempo do timer,
-mais rápido pode ser detectado o pressionamento do botão. Por isso, optou-se por um
-período de 25 ms (até 40 pressionamentos por segundo) entre cada passagem de tempo. Com
-isso, PSC foi escolhido como 3999 e ARR como 99.
+Resistores de 270 R ->  Como os LEDs vermelhos drenam 1,8 V (por tabela online),
+					    tem-se 3,3 V - 1,8 V nos resistores (1,5 V). Estabeleceu-se
+					    uma corrente próxima de 5 mA para cada LED e, assim, 1,5 V
+					    divididos por 5 mA resulta em 300 R, portanto, resistores
+					    de 270 R são suficientes.
 
 **/
 
