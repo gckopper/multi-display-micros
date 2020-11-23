@@ -1,12 +1,13 @@
 /**
 **
 **===========================================================================
-**  @file    Interrupções (6) - Pedro L. Lima, Turma 4312.c
+**  @file    TP01 - Multiplexação Displays (TP01) - Gabriel K. Pedro L., Turma 4312.c
 **  @author  Pedro L. Lima
+**  @author  Gabriel K.
 **  @group   4312
 **  @date    nov / 2020
 **  @version 1.0
-**  @brief   Exercício 6: Sinal monostável com delay, usando botão, LED e ISRs
+**  @brief   Trabalho 1: Projetar e construir um painel capaz de exibir mensagens de texto.
 **===========================================================================
 **
 
