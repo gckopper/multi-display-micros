@@ -138,8 +138,7 @@ int main (void)
 
 	GPIOA -> MODER |= (GPIO_MODER_MODER13_1 | GPIO_MODER_MODER14_1); // Configurando PA13 e PA14 como função alternativa (para debug)
 
-	GPIOC -> MODER |= (GPIO_MODER_MODER1_0 | GPIO_MODER_MODER2_0); // Configurando PC1 e PC2 como saídas digitais
-	GPIOC -> PUPDR |= GPIO_PUPDR_PUPDR0_0; // Ativando resistor de pull-ip para PC0
+	GPIOC -> MODER |= 0x555555; // Configurando PC0 até PC11 como saídas digitais
 
 	TIM10 -> DIER |= TIM_DIER_UIE; // Habilitando interrupções através do update do TIM10
 	TIM10 -> PSC = 1999; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 2000 (como delay inicialmente)
