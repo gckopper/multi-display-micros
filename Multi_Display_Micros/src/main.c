@@ -1,13 +1,13 @@
 /**
 **
 **===========================================================================
-**  @file    TP01 - Multiplexação Displays (TP01) - Gabriel K. Pedro L., Turma 4312.c
+**  @file    TP01_-_Multi_Display_-_Gabriel_K._e_Pedro_L.,_Turma_4312.c
 **  @author  Pedro L. Lima
-**  @author  Gabriel K.
+**  @author  Gabriel C. Kopper
 **  @group   4312
 **  @date    nov / 2020
 **  @version 1.0
-**  @brief   Trabalho 1: Projetar e construir um painel capaz de exibir mensagens de texto.
+**  @brief   Trabalho 1: Painel de displays que exibem mensagens de texto
 **===========================================================================
 **
 
