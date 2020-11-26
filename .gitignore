@@ -67,4 +67,5 @@ Multi_Display_Micros/Drivers/
 *.project
 *.log
 *.ld
+*.launch
 Multi_Display_Micros/.settings/
