@@ -118,100 +118,159 @@ Resistores de 270 R ->  Como os LEDs vermelhos drenam 1,8 V (por tabela online),
 
 /* Includes */
 #include "stm32f4xx.h"
-
-/* Defines */
-#define nDisplays 4
+#include <stdlib.h>
 
 /* Variáveis Globais */
-uint8_t bp = 0; // Variável que representa se o botão foi pressionado
 
-// Tabela de conversão de char para saída do GPIO baseado no valor numérico dos caracteres na tabela ascii
-uint8_t tascii[127] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-					   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-					   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-					   0xff, 0xff, 0x00, 0x83, 0x22, 0xff, 0xff, 0xff, 0xff, 0x20,
-					   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0xff, 0x3f, 0x06,
+// Tabela de conversão de char para saída do GPIO baseado no valor numérico dos caracteres na tabela ascii com um offset de 32 para excluir caracteres sem representação gráfica e economizar memória
+uint8_t tascii[] = {               0x00, 0x86, 0x22, 0xff, 0xff, 0xff, 0xff, 0x20,
+					   0xff, 0xff, 0xff, 0xff, 0xff, 0x40, 0x80, 0xff, 0x3f, 0x06,
 					   0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0xff, 0x82,
 					   0xff, 0xff, 0xff, 0xff, 0xff, 0x77, 0x7c, 0x39, 0x5e, 0x79,
 					   0x71, 0x3d, 0x74, 0x30, 0x1e, 0x75, 0x38, 0x15, 0x37, 0x5c,
 					   0x73, 0x67, 0x33, 0x69, 0x78, 0x3e, 0x2e, 0x2a, 0x76, 0x6e,
-					   0x4b, 0xff, 0xff, 0xff, 0xff, 0x04, 0xff, 0x77, 0x7c, 0x39,
-					   0x5e, 0x79, 0x71, 0x3d, 0x74, 0x30, 0x1e, 0x75, 0x38, 0x15,
-					   0x37, 0x5c, 0x73, 0x67, 0x33, 0x69, 0x78, 0x3e, 0x2e, 0x2a,
-					   0x76, 0x6e, 0x4b, 0xff, 0xff, 0xff, 0xff};
+					   0x4b, 0xff, 0xff, 0xff, 0xff, 0x04};
 
-uint8_t contrlDisp[nDisplays] = {GPIO_ODR_ODR_8, GPIO_ODR_ODR_9, GPIO_ODR_ODR_10, GPIO_ODR_ODR_11};
+uint8_t* contrlDisp; //
 
-/* Corpo das Funções de Interrupção */
-void TIM1_TRG_COM_TIM11_IRQHandler (void) // Quando o bit UIF de TIM11 virar 1
-{
-	/* Variáveis Locais */
-	static uint8_t bb; // Variável local, que preserva o valor na próxima chamada da função, responsável por guardar o estado do botão nos últimos 25 ms
-	static uint8_t count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por guardar o tempo passado
-	static uint8_t lbp = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por iniciar a contagem de tempo ligado para o LED Verde
+char* frase; // Vetor que armazena a frase que será mostrada no display
 
-	TIM11 -> SR &= ~TIM_SR_UIF; // Zerando o UIF quando a contagem for concluída
+uint8_t nDisplays = 0; // Variavel que armazena o numero de displays
 
-	/* Debouncing */
-	if (GPIOC -> IDR & GPIO_IDR_IDR_0) bb = 1; // Se o botão não for pressionado, armazena o estado do botão (0)
-	else if (bb) // Caso contrário, o botão foi apertado e se o estado anterior era 1 (detector de subida de pulso)
-	{
-		bb = 0; // Agora o estado do botão é de pressionado
-
-		if (!bp) // Se o ciclo do LED Azul anterior tiver sido finalizado
-		{
-			bp = 1; // Inicia um novo ciclo do LED Azul
-			TIM10 -> CNT = 0; // Reinicia a contagem de 0,5 s
-		}
-
-		if (!lbp) // Se não foi iniciado um ciclo para o LED Verde
-		{
-			GPIOC -> ODR |= GPIO_ODR_ODR_2; // Liga o LED Verde
-			lbp = 1; // Inicia um novo ciclo do LED Verde
-			TIM11 -> CNT = 0; // Reinicia a contagem de 25 ms
-		}
-	}
-
-	if (lbp) // Ciclo de tempo para desligar o LED Verde
-	{
-		count++; // Conta 25 ms (exceto na primeira vez)
-		if (count == 4) // Se passaram 75 ms
-		{
-			GPIOC -> ODR &= ~GPIO_ODR_ODR_2; // Desliga o LED Verde
-			count = 0; // Zera o contador
-			lbp = 0; // Termina o ciclo do LED Verde
-		}
-	}
-}
+int tamanho = 0; // Variavel do tamanho do vetor frase
 
 void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 {
-	/* Variáveis Locais */
-	static uint8_t count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por contar quantas vezes se passaram 500 ms
+	if (frase != NULL) { // Verifica se o vetor frase é não nulo, pois caso ele seja nulo não haverá mensagem para ser mostrada
+		// Variáveis Locais
+		static uint8_t count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por contar quantas vezes se passaram 5 ms
 
-	TIM10 -> SR &= ~TIM_SR_UIF; // Zerando o UIF quando a contagem for concluída
-
-	if (bp) // Se o botão for pressionado, inicia-se um novo ciclo para o LED Azul
-	{
-		count++; // Incrementa a variável count
-
-		switch (count) // Tomada de ações a cada múltiplo de 0,5 s
-		{
-			case 2: // Caso passar 1 s
-				GPIOC -> ODR |= GPIO_ODR_ODR_1; // Liga o LED Azul
-				break;
-
-			case 3: // Caso passar 1,5 s
-				GPIOC -> ODR &= ~GPIO_ODR_ODR_1; // Desliga o LED Azul
-				bp = 0; // Indica que acabou o ciclo do LED Azul
-				count = 0; // Volta count para o início do ciclo
-				break;
-
-			default: // Outro caso
-				GPIOC -> ODR &= ~GPIO_ODR_ODR_1; // Desliga o LED Azul
-				break;
+		if (tamanho < 0){ // Caso ele seja inveritido significa que seu valor foi alterado e portanto o contador deve ser resetado
+			count = 0;
+			tamanho *= -1;
 		}
+
+		if (*frase == '\0') // Caso o seja o ultimo caracter no vetor
+		{
+			frase -= tamanho; // Retorna para antes do primeiro endereço do vetor usando o tamanho dele
+			frase++; // Pula para o primeiro caracter
+			count = 0; // Reseta o contador da interrupção
+			return; // Finaliza a exeção da interrupção
+		}
+
+		if (!(count % nDisplays || count == 0)) // Ativa quando o contador for um multiplo do número de displays
+		{
+			frase -= nDisplays; // Retorna nDisplays endereços no vetor (para ir para o caracter do primeiro display)
+		}
+
+		if (count == 200) // Entra na condicional quando se passaram 200 vezes os 5 ms ou 1s
+		{
+			frase++; // Passa para a próxima letra do vetor
+			count = 0; // Zera o contador
+		}
+
+		GPIOC -> ODR &= 0xfffff000; // Desliga os displays e os segmentos
+		/* Liga o display usando um deslocamento de bit para posição indicada pelo vetor que contem os pinos indicados pelo usuário
+		 * O endereço usado é o modulo entre o contador de ciclos e o número de displays */
+		GPIOC -> ODR |= 1 << contrlDisp[count % nDisplays];
+		GPIOC -> ODR |= tascii[(int)(*frase)-32]; // É inserido no ODR um valor determinado pelo vetor tascii no endereço determinado pelo valor numérico do caracter no vetor frase -32 (offset da tabela)
+		frase++; // Passa para o próximo caracter do vetor
+		count++; // Adiciona um ao contador de interrupções
+
 	}
+	TIM10 -> SR &= ~TIM_SR_UIF; // Zerando o UIF quando a contagem for concluída
+}
+
+void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso e dPin é um vetor com os valores dos pinos no GPIOC
+{
+
+	TIM10 -> DIER &= ~TIM_DIER_UIE;// Desabilitando interrupções através do update do TIM10
+
+	static char* phFrase = NULL; // Define place holders para os ponteiros de forma estática para usar o free caso a função seja executada novamente
+	static uint8_t* phCtrlDisp = NULL; // Define place holders para os ponteiros de forma estática para usar o free caso a função seja executada novamente
+
+	if (frase == NULL) // Caso o vetor frase esteja nulo significa que é a primeira execução dessa função nem a interrupção nem os timers ainda foram configurados
+	{
+		TIM10 -> DIER |= TIM_DIER_UIE; ; // Habilitando interrupções através do update do TIM10
+		TIM10 -> PSC = 199; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 200 (como delay inicialmente)
+		TIM10 -> ARR = 399; // Auto-reload reiniciando o contador após contar até 399
+		TIM10 -> CR1 |= TIM_CR1_CEN;
+
+		/* Tem-se, assim, uma contagem para TIM10 que leva 5 ms para ser concluída */
+		NVIC_SetPriority (TIM1_UP_TIM10_IRQn, 0); // Colocando a prioridade da interrupção de TIM10 como segunda prioridade
+		NVIC_EnableIRQ (TIM1_UP_TIM10_IRQn); // Habilitando a interrupção por hardware através do TIM10
+	}
+
+	tamanho = 0; // Zera o tamanho do vetor frase para trocar seu valor
+	while (*fEntra != '\0') // Executa até o fim do vetor
+	{
+		fEntra++; // Passa para o próximo valor do vetor
+		tamanho++; // Contabiliza a letra no tamanho do vetor
+	}
+	tamanho++; // Contabiliza o caracter de fechamento da string
+
+	fEntra -= (tamanho - 1); // Retorna pro inicio do vetor
+
+
+	frase = NULL; // Deixa os vetors globais nulos
+	contrlDisp = NULL;
+
+	frase = malloc(tamanho + dEntra * 2); // A memória é alocada para os ponteiros com espaços extras para o padding
+	contrlDisp = malloc(sizeof(uint8_t) * dEntra); // A memória é alocada para os ponteiros
+
+	if (frase == NULL || contrlDisp == NULL) // Se os ponteiros estiverem nulos significa que o malloc falhou e por isso ele retorna
+	{
+		return;
+	}
+
+	free(phFrase); // Caso seja a primeira vez que a função é executada os ponteiros serão nulos e nada acontecerá.
+	free(phCtrlDisp);
+
+	phFrase = NULL; // Os ponteiros então são limpos para evitar problemas
+	phCtrlDisp = NULL;
+
+	phFrase = frase; // Atualiza os placeholders
+	phCtrlDisp = contrlDisp;
+
+	nDisplays = dEntra; // Define o valor da variavel global
+
+	for (uint8_t i = 0; i < (dEntra - 1); i++) // Cicla pro dEntra - 2
+	{
+		*frase = ' '; // Adiciona um espaço ao vetor
+		frase++; // Passa par o próximo valor
+		tamanho++; // Computa a alteração no tamanho do vetor
+	}
+
+	while (*fEntra != '\0') // Coloca o primeiro argumento no ponteiro global frase
+	{
+		*frase = *fEntra; // Copia o valor da entrada para o vetor frase
+		if ((int)*frase > 96) // Quando o caracter for maior que 96 (letras minusculas) ele subtrai 32 para tornar a letra em seu correspondente maiusculo
+		{
+			*frase -= 32;
+		}
+		frase++; // Avança os vetores
+		fEntra++; // Avança os vetores
+	}
+
+	for (uint8_t i = 0; i < dEntra; i++) // Coloca o terceiro argumento no ponteiro global contrlDisp
+	{
+		*frase = ' '; // Adiciona mais 'paddings' para frase
+		*contrlDisp = *dPin; // Aproveita para copia a entrada dos pinos pro vetor global responsável
+		contrlDisp++; // Avança os vetores
+		dPin++; // Avança os vetores
+		frase++; // Avança os vetores
+		tamanho++; // Computa a alteração no tamanho do vetor
+	}
+
+	*frase = '\0'; // Adiciona um caracter de finalização ao ponteiro
+
+	frase = phFrase; // Faz os ponteiros voltarem a posição inicial
+	contrlDisp = phCtrlDisp;
+
+	tamanho *= -1; // Inverte o valor do tamanho para indicar uma modificação nele
+
+	TIM10 -> DIER |= TIM_DIER_UIE; // Habilitando interrupções através do update do TIM10
+
 }
 
 /* Programa Principal */
@@ -219,29 +278,21 @@ int main (void)
 {
 	/* Configuração dos pinos e periféricos */
 	RCC -> AHB1ENR |= (RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOCEN); // Ativando apenas o clock das GPIOA e GPIOC
-	RCC -> APB2ENR |= (RCC_APB2ENR_TIM10EN | RCC_APB2ENR_TIM11EN); // Habilitando o Timer 10 e o Timer 11
+	RCC -> APB2ENR |= (RCC_APB2ENR_TIM10EN); // Habilitando o Timer 10 e o Timer 11
 
 	GPIOA -> MODER |= (GPIO_MODER_MODER13_1 | GPIO_MODER_MODER14_1); // Configurando PA13 e PA14 como função alternativa (para debug)
 
 	GPIOC -> MODER |= 0x555555; // Configurando PC0 até PC11 como saídas digitais
 
-	TIM10 -> DIER |= TIM_DIER_UIE; // Habilitando interrupções através do update do TIM10
-	TIM10 -> PSC = 1999; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 2000 (como delay inicialmente)
-	TIM10 -> ARR = 3999; // Auto-reload reiniciando o contador após contar até 3999
-	TIM10 -> CR1 |= TIM_CR1_CEN; // Habilitando contagem de TIM10
-	/* Tem-se, assim, uma contagem para TIM10 que leva 500 ms para ser concluída */
+	uint8_t pin[4] = {8, 9, 10, 11}; // Cria um vetor com os pinos
 
-	TIM11 -> DIER |= TIM_DIER_UIE; // Habilitando interrupções através do update do TIM11
-	TIM11 -> PSC = 3999; // Colocando o Pre-scaller de TIM11 para dividir CK_INT (16 MHz) por 4000
-	TIM11 -> ARR = 249; // Auto-reload reiniciando o contador após contar até 250
-	TIM11 -> CR1 |= TIM_CR1_CEN; // Habilita contagem de TIM11
-	/* Tem-se, assim, uma contagem para TIM11 que leva 25 ms para ser concluída */
+	displayConf("Hello world!", 4, pin); // Chama a função displayConf para apresentar a frase "Hello world!"
 
-	NVIC_EnableIRQ (TIM1_UP_TIM10_IRQn); // Habilitando a interrupção por hardware através do TIM10
-	NVIC_EnableIRQ (TIM1_TRG_COM_TIM11_IRQn); // Habilitando a interrupção por hardware através do TIM11
-	NVIC_SetPriority (TIM1_UP_TIM10_IRQn, 1); // Colocando a prioridade da interrupção de TIM10 como segunda prioridade
-	NVIC_SetPriority (TIM1_TRG_COM_TIM11_IRQn, 0); // Colocando a prioridade da interrupção de TIM11 como máxima
+	while (*frase != '\0'); // Espera a frase anterior terminar
 
+	displayConf("Ola mundo", 4, pin); // Chama a função displayConf para apresentar a frase "Ola mundo"
+
+	// Não faz nada no loop
 	/* Laço de repetição */
-	while (1); // Não faz nada no loop
+	while (1);
 }
