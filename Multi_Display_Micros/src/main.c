@@ -7,14 +7,14 @@
 **  @group   4312
 **  @date    nov / 2020
 **  @version 1.0
-**  @brief   Trabalho 1: Painel de displays que exibem mensagens de texto
+**  @brief   Trabalho 1: Painel de displays que exibe mensagens de texto
 **===========================================================================
 **
 
 Este programa realiza a exibição de uma mensagem, configurável por funções e por
 macros, através de um número pré-definido de displays de 7 segmentos. O programa
 realiza isso através da multiplexação dos catodos de cada display. A frequência
-de multiplexação utilizada neste programa é de 1 kHz, podendo-se utilizar, assim
+de multiplexação utilizada neste programa é de 200 Hz, podendo-se utilizar, assim
 até 40 displays para exibir mensagens. As mensagens são exibidas com os caracteres
 descritos na tabela abaixo.
 
@@ -89,6 +89,16 @@ Z					0 1 0 0 1 0 1 1									0x4B
 _					0 0 0 0 1 0 0 0									0x04
 ‘					0 0 1 0 0 0 0 0									0x20
 “					0 0 1 0 0 0 1 0									0x22
+,					0 0 0 0 0 1 0 0									0x04
+(					0 0 1 1 1 0 0 1									0x39
+)					0 0 0 0 1 1 1 1									0x0F
+\					0 1 1 0 0 1 0 0									0x64
+/					0 1 0 1 0 0 1 0									0x52
+?					1 1 0 1 0 0 1 1									0xD3
+:					1 1 0 0 0 0 1 0									0xC2
+=					0 1 0 0 1 0 0 0									0x48
+>					0 1 0 0 0 0 1 1									0x43
+<					0 1 1 0 0 0 0 1									0x61
 
 
 Dimensionamento dos componentes externos:
