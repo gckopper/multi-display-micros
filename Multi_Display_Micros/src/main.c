@@ -14,7 +14,7 @@
 Este programa realiza a exibição de uma mensagem, configurável por funções e por
 macros, através de um número pré-definido de displays de 7 segmentos. O programa
 realiza isso através da multiplexação dos catodos de cada display. A frequência
-de multiplexação utilizada neste programa é de 200 Hz, podendo-se utilizar, assim
+de multiplexação utilizada neste programa é de 1 kHz, podendo-se utilizar, assim
 até 40 displays para exibir mensagens. As mensagens são exibidas com os caracteres
 descritos na tabela abaixo.
 
@@ -100,7 +100,6 @@ _					0 0 0 0 1 0 0 0									0x04
 >					0 1 0 0 0 0 1 1									0x43
 <					0 1 1 0 0 0 0 1									0x61
 
-
 Dimensionamento dos componentes externos:
 
 Transistores BC547	 -> Com Vcemáx de 45 V, Pcmáx de 500 mW, Icmáx de 100 mA,
@@ -131,193 +130,251 @@ Resistores de 270 R ->  Como os LEDs vermelhos drenam 1,8 V (por tabela online),
 #include <stdlib.h>
 
 /* Variáveis Globais */
+uint8_t tascii [] = {0x00, 0x86, 0x22, 0xff, 0xff, 0xff, 0xff, 0x20, 0x39, 0x0f, // Tabela de conversão de char para saída da GPIO
+					 0xff, 0xff, 0x04, 0x40, 0x80, 0x52, 0x3f, 0x06, 0x5b, 0x4f, // baseada no valor numérico dos caracterees na
+					 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0xc2, 0x82, 0x61, 0x48, // tabela ASCII com um offset de 32 para excluir
+					 0x43, 0xd3, 0xff, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71, 0x3d, // caracteres sem representação gráfica e economizar
+					 0x74, 0x30, 0x1e, 0x75, 0x38, 0x15, 0x37, 0x5c, 0x73, 0x67, // memória
+					 0x33, 0x69, 0x78, 0x3e, 0x2e, 0x2a, 0x76, 0x6e, 0x4b, 0xff,
+					 0x64, 0xff, 0xff, 0x08};
 
-// Tabela de conversão de char para saída do GPIO baseado no valor numérico dos caracteres na tabela ascii com um offset de 32 para excluir caracteres sem representação gráfica e economizar memória
-uint8_t tascii[] = {               0x00, 0x86, 0x22, 0xff, 0xff, 0xff, 0xff, 0x20,
-					   0x39, 0x0f, 0xff, 0xff, 0x04, 0x40, 0x80, 0x52, 0x3f, 0x06,
-					   0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0xc2, 0x82,
-					   0x61, 0x48, 0x43, 0xd3, 0xff, 0x77, 0x7c, 0x39, 0x5e, 0x79,
-					   0x71, 0x3d, 0x74, 0x30, 0x1e, 0x75, 0x38, 0x15, 0x37, 0x5c,
-					   0x73, 0x67, 0x33, 0x69, 0x78, 0x3e, 0x2e, 0x2a, 0x76, 0x6e,
-					   0x4b, 0xff, 0x64, 0xff, 0xff, 0x08};
+uint8_t* contrlDisp; // Ponteiro usado para manipular globalmente o ponteiro dPin
 
-uint8_t* contrlDisp; //
+char* frase; // Ponteiro usado para percorrer o espaço de memória com a frase que será mostrada no display
 
-char* frase; // Vetor que armazena a frase que será mostrada no display
+uint8_t nDisplays = 0; // Variável que armazena o numero de displays
 
-uint8_t nDisplays = 0; // Variavel que armazena o numero de displays
+int tamanho = 0; // Variável representando o tamanho do espaço (em bytes) que a frase que será mostrada no display ocupa
 
-int tamanho = 0; // Variavel do tamanho do vetor frase
+unsigned int lTempo; // Variável usada para tornar global a variável lTime da função displayConf
 
+char selModo; // Variável usada para tornar global a variável selectMode da função displayConf
+
+/* Corpo de Funções de Interrupção */
 void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 {
-	if (frase != NULL) { // Verifica se o vetor frase é não nulo, pois caso ele seja nulo não haverá mensagem para ser mostrada
+	if (frase != NULL) { // Verifica se o vetor frase é não nulo, pois caso ele seja nulo, não haverá mensagem para ser mostrada
+
 		// Variáveis Locais
-		static uint8_t count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por contar quantas vezes se passaram 5 ms
+		static unsigned int count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por contar quantas vezes passou 1 ms
 
-		if (tamanho < 0){ // Caso ele seja inveritido significa que seu valor foi alterado e portanto o contador deve ser resetado
-			count = 0;
-			tamanho *= -1;
+		if (tamanho < 0) // Caso tamanho seja negativo, significa que seu valor foi multiplicado por '-1', assim:
+		{
+			count = 0; // O contador deve ser resetado
+			tamanho *= -1; // E o tamanho multiplicado por '-1' novamente
 		}
 
-		if (*frase == '\0') // Caso o seja o ultimo caracter no vetor
+		if (frase[nDisplays - 1] == '\0') // Caso o seja o último caractere do espaço reservado para a frase
 		{
-			frase -= tamanho; // Retorna para antes do primeiro endereço do vetor usando o tamanho dele
-			frase++; // Pula para o primeiro caracter
-			count = 0; // Reseta o contador da interrupção
-			return; // Finaliza a exeção da interrupção
-		}
+			frase -= (tamanho - nDisplays); // Retorna para o primeiro endereço da frase usando o tamanho dela;
+			count = 0; // Reseta o contador de interrupções
 
-		if ((count % nDisplays == 0 && count != 0)) // Ativa quando o contador for um multiplo do número de displays
-		{
-			frase -= nDisplays; // Retorna nDisplays endereços no vetor (para ir para o caracter do primeiro display)
-			if (count == 200) // Entra na condicional quando se passaram 200 vezes os 5 ms ou 1s
+			if (selModo == 'u') // Caso o modo selecionado como parâmetro da função displayConf seja igual a 'u'
 			{
-				frase++; // Passa para a próxima letra do vetor
+				TIM10 -> DIER &= ~TIM_DIER_UIE; // Desabilita interrupções através do update do TIM10
+			}
+
+			return; // Finaliza a execução da interrupção
+		}
+
+		if ((count % nDisplays == 0) && (count != 0)) // Quando o contador for um multiplo do número de displays (excluindo o valor nulo)
+		{
+
+			if (count == lTempo) // Entra na condicional quando passaram lTempo vezes 1 ms
+			{
+				frase++; // Passa para a próxima letra da frase
 				count = 0; // Zera o contador
 			}
 		}
 
+		GPIOC -> ODR &= 0xfffff000; // Desligando todos os segmentos dos displays (PC0 a PC7)
 
+		/* Ligando um display usando deslocamento de bits para a posição indicada pelo ponteiro que contém os pinos indicados pelo usuário */
+		/* O endereço usado é o modulo entre o contador de ciclos e o número de displays, ciclando entre 0 e (nDisplays - 1)               */
+		GPIOC -> ODR |= 1 << contrlDisp [count % nDisplays];
 
-		GPIOC -> ODR &= 0xfffff000; // Desliga os displays e os segmentos
-		/* Liga o display usando um deslocamento de bit para posição indicada pelo vetor que contem os pinos indicados pelo usuário
-		 * O endereço usado é o modulo entre o contador de ciclos e o número de displays */
-		GPIOC -> ODR |= 1 << contrlDisp[count % nDisplays];
-		GPIOC -> ODR |= tascii[(int)(*frase)-32]; // É inserido no ODR um valor determinado pelo vetor tascii no endereço determinado pelo valor numérico do caracter no vetor frase -32 (offset da tabela)
-		frase++; // Passa para o próximo caracter do vetor
+		/* É inserido na ODR um valor determinado pelo vetor tascii no endereço determinado pelo valor numérico do caractere no vetor (frase - 32) (offset da tabela) */
+		GPIOC -> ODR |= tascii [(int)(frase[count % nDisplays]) - 32];
+
 		count++; // Adiciona um ao contador de interrupções
 
 	}
-	TIM10 -> SR &= ~TIM_SR_UIF; // Zerando o UIF quando a contagem for concluída
+	TIM10 -> SR &= ~TIM_SR_UIF; // Zerando o bit UIF quando a contagem for concluída
 }
 
-void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso e dPin é um vetor com os valores dos pinos no GPIOC
+/* Corpo de Funções Customizadas */
+void displayConf (const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned int lTime, const char selectMode)
 {
+/*
+   Parâmetros da função:
 
-	if (*fEntra == '\0' || *dPin == '\0' || dEntra == 0) {
-		return;
+   fEntra guarda uma string para ser mostrada nos displays;
+
+   dEntrada guarda a quantidade de displays em uso;
+
+   dPin é um vetor com os valores dos pinos no GPIOC;
+
+   lTime serve para definir o tempo de cada caractere no display em milissegundos (precisa ser um múltiplo de dEntra);
+
+   selectMode serve para selecionar o modo de operação do painel:
+
+   	   Se for igual à 'u' -> Mostrará o texto apenas uma vez
+
+   	   Se for igual à 'c' -> Mostrará o texto infinitas vezes
+*/
+	/* Variáveis Locais */
+	int backupTamanho = tamanho; // Salvando uma copia do tamanho
+
+	if (*fEntra == '\0' || dEntra == 0 || *dPin == '\0' || lTime == 0 || (selectMode != 'u' && selectMode != 'c')) // Caso não esteja bem configurada a função
+	{
+		return; // Encerra a função
 	}
 
-	TIM10 -> DIER &= ~TIM_DIER_UIE;// Desabilitando interrupções através do update do TIM10
+	TIM10 -> DIER &= ~TIM_DIER_UIE; // Desabilitando interrupções através do update do TIM10
 
-	static char* phFrase = NULL; // Define place holders para os ponteiros de forma estática para usar o free caso a função seja executada novamente
-	static uint8_t* phCtrlDisp = NULL; // Define place holders para os ponteiros de forma estática para usar o free caso a função seja executada novamente
+	selModo = selectMode; // Tornando o parâmetro selectMode global em selModo
 
+	lTempo = lTime - (lTime % dEntra); // Passando o tempo configurado para a variável global (arredondado para o menor mais próximo múltiplo de dEntra)
 
-	if (frase == NULL) // Caso o vetor frase esteja nulo significa que é a primeira execução dessa função nem a interrupção nem os timers ainda foram configurados
+	static char* phFrase = NULL; // Definindo um placeholder para o ponteiro de forma estática para usar o free caso a função seja executada novamente
+	static uint8_t* phCtrlDisp = NULL; // Definindo um placeholder para o ponteiros de forma estática para usar o free caso a função seja executada novamente
+
+	if (frase == NULL) // Caso o ponteiro apontado para uma parte da frase tenha endereço nulo, significa que é a primeira execução desta função
 	{
-		TIM10 -> DIER |= TIM_DIER_UIE; ; // Habilitando interrupções através do update do TIM10
-		TIM10 -> PSC = 199; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 200 (como delay inicialmente)
-		TIM10 -> ARR = 399; // Auto-reload reiniciando o contador após contar até 399
+		TIM10 -> DIER |= TIM_DIER_UIE; // Habilitando interrupções através do update do TIM10
+		TIM10 -> PSC = 159; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 160
+		TIM10 -> ARR = 99; // Auto-reload reiniciando o contador após contar até 99
 		TIM10 -> CR1 |= TIM_CR1_CEN;
+		/* Tem-se, assim, uma contagem para TIM10 que leva 1 ms para ser concluída */
 
-		/* Tem-se, assim, uma contagem para TIM10 que leva 5 ms para ser concluída */
-		NVIC_SetPriority (TIM1_UP_TIM10_IRQn, 0); // Colocando a prioridade da interrupção de TIM10 como segunda prioridade
+		NVIC_SetPriority (TIM1_UP_TIM10_IRQn, 0); // Colocando a prioridade da interrupção de TIM10 como prioridade máxima
 		NVIC_EnableIRQ (TIM1_UP_TIM10_IRQn); // Habilitando a interrupção por hardware através do TIM10
 	}
 
-	int backupTamanho = tamanho; // Salva uma copia do tamanho
+	tamanho = 0; // Zerando o tamanho da frase para trocar seu valor
 
-	tamanho = 0; // Zera o tamanho do vetor frase para trocar seu valor
-	while (*fEntra != '\0') // Executa até o fim do vetor
+	while (*fEntra != '\0') // Executa até o fim da frase
 	{
-		fEntra++; // Passa para o próximo valor do vetor
-		tamanho++; // Contabiliza a letra no tamanho do vetor
+		fEntra++; // Passa para o próximo endereço da string parâmetro
+		tamanho++; // Contabiliza a letra no tamanho da frase
 	}
-	fEntra -= tamanho; // Retorna pro inicio do vetor
 
-	tamanho++; // Contabiliza o caracter de fechamento da string
+	fEntra -= tamanho; // Retornando pro inicio da string
 
-	frase = NULL; // Deixa os vetors globais nulos
-	contrlDisp = NULL;
+	frase = NULL;      // Deixando os ponteiros
+	contrlDisp = NULL; // globais em endereço nulo
 
-	frase = malloc(tamanho + dEntra * 2); // A memória é alocada para os ponteiros com espaços extras para o padding
-	contrlDisp = malloc(sizeof(uint8_t) * dEntra); // A memória é alocada para os ponteiros
+	frase = malloc (tamanho + (dEntra * 2)); // Alocando memória para a frase com espaços extras para o padding
+	contrlDisp = malloc (sizeof (uint8_t) * dEntra); // Alocando memória para armazenar os pinos de controle
 
-	if (frase == NULL || contrlDisp == NULL) // Se os ponteiros estiverem nulos significa que o malloc falhou e por isso ele retorna
+	if (frase == NULL || contrlDisp == NULL) // Se os ponteiros estiverem nulos, significa que o malloc falhou
 	{
 		if (phFrase != NULL && phCtrlDisp != NULL)
 		{
-			/* Caso os placeholders tenham algum valor eles são usados, juntamente do backupTamanho, para retornar as variaveis globais para seus valores
-			 * antes da ultima chamada da função como forma de backup (o numero de entradas não foi alterado e portanto não precisa ser recuperado)*/
-			tamanho = backupTamanho;
-			frase = phFrase;
-			contrlDisp = phCtrlDisp;
+			/* Caso os placeholders tenham algum valor, eles são usados juntamente do backupTamanho para retornar as variáveis globais para seus valores      */
+			/* originais antes da última chamada da função como forma de backup (o número de entradas não foi alterado e portanto não precisa ser recuperado) */
+
+			tamanho = backupTamanho; // )
+			frase = phFrase;		 // } Execução do backup
+			contrlDisp = phCtrlDisp; // )
 		}
-		return;
+		return; // Encerra a função
 	}
 
-	free(phFrase); // Caso seja a primeira vez que a função é executada os ponteiros serão nulos e nada acontecerá.
-	free(phCtrlDisp);
+	nDisplays = dEntra; // Definindo o valor da variável global que armazena o número de displays
 
-	phFrase = NULL; // Os ponteiros então são limpos para evitar problemas
-	phCtrlDisp = NULL;
+	free (phFrase);    /* Caso seja a primeira vez que a função é executada, os ponteiros serão nulos e nada acontecerá. Caso */
+	free (phCtrlDisp); /* contrário, liberará o espaço usado para a frase anterior, bem como o espaço dos pinos de controle   */
 
-	phFrase = frase; // Atualiza os placeholders
-	phCtrlDisp = contrlDisp;
+	phFrase = NULL;    /* Limpando os ponteiros placeholders */
+	phCtrlDisp = NULL; /* para evitar problemas              */
 
-	nDisplays = dEntra; // Define o valor da variavel global
+	phFrase = frase; 		 /* Atualizando os */
+	phCtrlDisp = contrlDisp; /* placeholders   */
 
-	for (uint8_t i = 0; i < (dEntra - 1); i++) // Cicla pro dEntra - 2
+	// Adicionando (dEntra - 1) espaços no início da frase (padding inicial)
+	for (uint8_t i = 0; i < (dEntra - 1); i++) // Cicla por 0 até (dEntra - 2)
 	{
-		*frase = ' '; // Adiciona um espaço ao vetor
-		frase++; // Passa par o próximo valor
-		tamanho++; // Computa a alteração no tamanho do vetor
+		*frase = ' '; // Adiciona um padding à frase
+		frase++; // Passa para o próximo endereço dessa
+		tamanho++; // Computa a alteração no tamanho da string
 	}
 
-	while (*fEntra != '\0') // Coloca o primeiro argumento no ponteiro global frase
+	// Colocando o primeiro argumento da função no ponteiro global frase
+	while (*fEntra != '\0') // Enquanto não alcançar o final da string fEntra
 	{
-		*frase = *fEntra; // Copia o valor da entrada para o vetor frase
-		if ((int)*frase > 96) // Quando o caracter for maior que 96 (letras minusculas) ele subtrai 32 para tornar a letra em seu correspondente maiusculo
+		*frase = *fEntra; // Copia o valor da entrada atual para o a posição atual da frase (após o padding inicial)
+
+		if ((int)*frase > 96) // Quando o caractere for maior que 96 (letras minúsculas)
 		{
-			*frase -= 32;
+			*frase -= 32; // Subtrai-se 32 para tornar a letra em seu correspondente maiúsculo
 		}
-		frase++; // Avança os vetores
-		fEntra++; // Avança os vetores
+
+		frase++; // Avança para o próximo espaço da frase
+		fEntra++; // Avança para o próximo caractere da entrada
 	}
 
-	for (uint8_t i = 0; i < dEntra; i++) // Coloca o terceiro argumento no ponteiro global contrlDisp
+	// Incorporando dEntra espaços no final da frase (padding final)
+	for (uint8_t i = 0; i < dEntra; i++) // Coloca  no ponteiro global contrlDisp
 	{
-		*frase = ' '; // Adiciona mais 'paddings' para frase
-		*contrlDisp = *dPin; // Aproveita para copia a entrada dos pinos pro vetor global responsável
-		contrlDisp++; // Avança os vetores
-		dPin++; // Avança os vetores
-		frase++; // Avança os vetores
-		tamanho++; // Computa a alteração no tamanho do vetor
+		*frase = ' '; // Adiciona um padding à frase
+		*contrlDisp = *dPin; // Aproveita para copiar o conteúdo do terceiro argumento da função (as saídas dos pinos de controle) para o conteúdo do ponteiro global responsável
+		contrlDisp++; // Avança o endereço do espaço reservado para os pinos de controle
+		dPin++; // Avança o endereço do espaço reservado para os pinos de controle (variável global)
+		frase++; // Avança para o próximo espaço da frase
+		tamanho++; // Computa a alteração no tamanho da string
 	}
 
-	*frase = '\0'; // Adiciona um caracter de finalização ao ponteiro
+	*frase = '\0'; // Adicionando um caractere de finalização à string a ser mostrada
 
-	frase = phFrase; // Faz os ponteiros voltarem a posição inicial
-	contrlDisp = phCtrlDisp;
+	tamanho++; // Contabilizando o caractere de fechamento da string
 
-	tamanho *= -1; // Inverte o valor do tamanho para indicar uma modificação nele
+	frase = phFrase; 	     /* Retornando os ponteiros da frase */
+	contrlDisp = phCtrlDisp; /* e de controle à posição inicial  */
+
+	tamanho *= -1; // Negativando o valor do tamanho para indicar uma modificação nele
 
 	TIM10 -> DIER |= TIM_DIER_UIE; // Habilitando interrupções através do update do TIM10
+}
 
+void esperaDisplay(void)
+{
+	/* Função que espera o texto terminar de passar
+	 * Se a interrupção estiver ligada significa que ainda tem texto passando.
+	 * Caso a interrupção esteja desligada significa que não existe texto nos displays e portando nada é feito*/
+	if (TIM10 -> DIER & TIM_DIER_UIE)
+	{
+		while (!(frase[nDisplays + 1] == '\0')); // Espera o display terminar a última frase
+	}
+}
+
+void updateDisplay(const char* fEntra, unsigned int lTime, uint8_t interUnicaVez) {
+	/* Um 'wrapper' para facilitar a entrada do usuário ao alterar o texto, pois mantem os pinos e displays previamente definidos */
+	if (nDisplays != 0 && contrlDisp != NULL) // Confirma que já houve uma configuração do display
+	{
+		displayConf(fEntra, nDisplays, contrlDisp, lTime, interUnicaVez);
+	}
 }
 
 /* Programa Principal */
 int main (void)
 {
-	/* Configuração dos pinos e periféricos */
+	/* Configuração dos Pinos e Periféricos */
 	RCC -> AHB1ENR |= (RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOCEN); // Ativando apenas o clock das GPIOA e GPIOC
-	RCC -> APB2ENR |= (RCC_APB2ENR_TIM10EN); // Habilitando o Timer 10 e o Timer 11
+	RCC -> APB2ENR |= RCC_APB2ENR_TIM10EN; // Habilitando o Timer 10
 
 	GPIOA -> MODER |= (GPIO_MODER_MODER13_1 | GPIO_MODER_MODER14_1); // Configurando PA13 e PA14 como função alternativa (para debug)
 
 	GPIOC -> MODER |= 0x555555; // Configurando PC0 até PC11 como saídas digitais
 
-	uint8_t pin[4] = {8, 9, 10, 11}; // Cria um vetor com os pinos
+	uint8_t pin [4] = {8, 9, 10, 11}; // Criando um vetor com os pinos de controle da GPIOC
 
-	displayConf("Hello world!", 4, pin); // Chama a função displayConf para apresentar a frase "Hello world!"
+	displayConf ("Hello world!", 4, pin, 300, 'u'); // Chamando a função displayConf para apresentar a frase "Hello world!" em 4 displays, 300 s por display, por uma única vez
 
-	while (*frase != '\0'); // Espera a frase anterior terminar
+	esperaDisplay(); // Esperando a frase anterior terminar
 
-	displayConf("Ola mundo", 4, pin); // Chama a função displayConf para apresentar a frase "Ola mundo"
+	updateDisplay ("Ola mundo", 700, 'c'); // Chamando a função updateDisplay para apresentar a frase "Ola mundo" nos mesmos displays, 700 ms por display, por uma única vez
 
-	// Não faz nada no loop
-	/* Laço de repetição */
-	while (1);
+	/* Laço de Repetição */
+	while (1); // Não faz nada no loop
 }
