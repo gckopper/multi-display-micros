@@ -177,10 +177,9 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 			return; // Finaliza a execução da interrupção
 		}
 
-		if ((count % nDisplays == 0) && (count != 0)) // Quando o contador for um multiplo do número de displays (excluindo o valor nulo)
+		if (count == lTempo) // Entra na condicional quando passaram lTempo vezes 1 ms
 		{
-
-			if (count == lTempo) // Entra na condicional quando passaram lTempo vezes 1 ms
+			if (selModo != 's') // Entra na condicional quando passaram lTempo vezes 1 ms
 			{
 				frase++; // Passa para a próxima letra da frase
 				count = 0; // Zera o contador
@@ -221,11 +220,13 @@ void displayConf (const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned in
    	   Se for igual à 'u' -> Mostrará o texto apenas uma vez
 
    	   Se for igual à 'c' -> Mostrará o texto infinitas vezes
+
+   	   Se for igual à 's' -> Mostrará de forma fixa os primeiros nDisplays caracteres
 */
 	/* Variáveis Locais */
 	int backupTamanho = tamanho; // Salvando uma copia do tamanho
 
-	if (*fEntra == '\0' || dEntra == 0 || *dPin == '\0' || lTime == 0 || (selectMode != 'u' && selectMode != 'c')) // Caso não esteja bem configurada a função
+	if (*fEntra == '\0' || dEntra == 0 || *dPin == '\0' || lTime == 0 || (selectMode != 'u' && selectMode != 'c' && selectMode != 's')) // Caso não esteja bem configurada a função
 	{
 		return; // Encerra a função
 	}
@@ -292,12 +293,15 @@ void displayConf (const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned in
 	phFrase = frase; 		 /* Atualizando os */
 	phCtrlDisp = contrlDisp; /* placeholders   */
 
-	// Adicionando (dEntra - 1) espaços no início da frase (padding inicial)
-	for (uint8_t i = 0; i < (dEntra - 1); i++) // Cicla por 0 até (dEntra - 2)
+	if (selModo != 's')
 	{
-		*frase = ' '; // Adiciona um padding à frase
-		frase++; // Passa para o próximo endereço dessa
-		tamanho++; // Computa a alteração no tamanho da string
+		// Adicionando (dEntra - 1) espaços no início da frase (padding inicial)
+		for (uint8_t i = 0; i < (dEntra - 1); i++) // Cicla por 0 até (dEntra - 2)
+		{
+			*frase = ' '; // Adiciona um padding à frase
+			frase++; // Passa para o próximo endereço dessa
+			tamanho++; // Computa a alteração no tamanho da string
+		}
 	}
 
 	// Colocando o primeiro argumento da função no ponteiro global frase
@@ -317,13 +321,17 @@ void displayConf (const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned in
 	// Incorporando dEntra espaços no final da frase (padding final)
 	for (uint8_t i = 0; i < dEntra; i++) // Coloca  no ponteiro global contrlDisp
 	{
-		*frase = ' '; // Adiciona um padding à frase
+		if (selModo != 's')
+		{
+			*frase = ' '; // Adiciona um padding à frase
+			frase++; // Avança para o próximo espaço da frase
+			tamanho++; // Computa a alteração no tamanho da string
+		}
 		*contrlDisp = *dPin; // Aproveita para copiar o conteúdo do terceiro argumento da função (as saídas dos pinos de controle) para o conteúdo do ponteiro global responsável
 		contrlDisp++; // Avança o endereço do espaço reservado para os pinos de controle
 		dPin++; // Avança o endereço do espaço reservado para os pinos de controle (variável global)
-		frase++; // Avança para o próximo espaço da frase
-		tamanho++; // Computa a alteração no tamanho da string
-	}
+
+		}
 
 	*frase = '\0'; // Adicionando um caractere de finalização à string a ser mostrada
 
@@ -373,7 +381,11 @@ int main (void)
 
 	esperaDisplay(); // Esperando a frase anterior terminar
 
-	updateDisplay ("Ola mundo", 700, 'c'); // Chamando a função updateDisplay para apresentar a frase "Ola mundo" nos mesmos displays, 700 ms por display, por uma única vez
+	updateDisplay("Ola mundo", 100, 'u'); // Chamando a função updateDisplay para apresentar a frase "Ola mundo" nos mesmos displays, 700 ms por display, por uma única vez
+
+	esperaDisplay();
+
+	updateDisplay("peko", 200, 's');
 
 	/* Laço de Repetição */
 	while (1); // Não faz nada no loop
