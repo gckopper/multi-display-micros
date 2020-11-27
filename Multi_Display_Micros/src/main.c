@@ -195,10 +195,15 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso e dPin é um vetor com os valores dos pinos no GPIOC
 {
 
+	if (*fEntra == '\0' || *dPin == '\0' || dEntra == 0) {
+		return;
+	}
+
 	TIM10 -> DIER &= ~TIM_DIER_UIE;// Desabilitando interrupções através do update do TIM10
 
 	static char* phFrase = NULL; // Define place holders para os ponteiros de forma estática para usar o free caso a função seja executada novamente
 	static uint8_t* phCtrlDisp = NULL; // Define place holders para os ponteiros de forma estática para usar o free caso a função seja executada novamente
+
 
 	if (frase == NULL) // Caso o vetor frase esteja nulo significa que é a primeira execução dessa função nem a interrupção nem os timers ainda foram configurados
 	{
@@ -212,16 +217,17 @@ void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra gu
 		NVIC_EnableIRQ (TIM1_UP_TIM10_IRQn); // Habilitando a interrupção por hardware através do TIM10
 	}
 
+	int backupTamanho = tamanho; // Salva uma copia do tamanho
+
 	tamanho = 0; // Zera o tamanho do vetor frase para trocar seu valor
 	while (*fEntra != '\0') // Executa até o fim do vetor
 	{
 		fEntra++; // Passa para o próximo valor do vetor
 		tamanho++; // Contabiliza a letra no tamanho do vetor
 	}
+	fEntra -= tamanho; // Retorna pro inicio do vetor
+
 	tamanho++; // Contabiliza o caracter de fechamento da string
-
-	fEntra -= (tamanho - 1); // Retorna pro inicio do vetor
-
 
 	frase = NULL; // Deixa os vetors globais nulos
 	contrlDisp = NULL;
@@ -231,6 +237,14 @@ void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra gu
 
 	if (frase == NULL || contrlDisp == NULL) // Se os ponteiros estiverem nulos significa que o malloc falhou e por isso ele retorna
 	{
+		if (phFrase != NULL && phCtrlDisp != NULL)
+		{
+			/* Caso os placeholders tenham algum valor eles são usados, juntamente do backupTamanho, para retornar as variaveis globais para seus valores
+			 * antes da ultima chamada da função como forma de backup (o numero de entradas não foi alterado e portanto não precisa ser recuperado)*/
+			tamanho = backupTamanho;
+			frase = phFrase;
+			contrlDisp = phCtrlDisp;
+		}
 		return;
 	}
 
