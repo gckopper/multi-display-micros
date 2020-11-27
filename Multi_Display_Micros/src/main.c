@@ -168,16 +168,17 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 			return; // Finaliza a exeção da interrupção
 		}
 
-		if (!(count % nDisplays || count == 0)) // Ativa quando o contador for um multiplo do número de displays
+		if ((count % nDisplays == 0 && count != 0)) // Ativa quando o contador for um multiplo do número de displays
 		{
 			frase -= nDisplays; // Retorna nDisplays endereços no vetor (para ir para o caracter do primeiro display)
+			if (count == 200) // Entra na condicional quando se passaram 200 vezes os 5 ms ou 1s
+			{
+				frase++; // Passa para a próxima letra do vetor
+				count = 0; // Zera o contador
+			}
 		}
 
-		if (count == 200) // Entra na condicional quando se passaram 200 vezes os 5 ms ou 1s
-		{
-			frase++; // Passa para a próxima letra do vetor
-			count = 0; // Zera o contador
-		}
+
 
 		GPIOC -> ODR &= 0xfffff000; // Desliga os displays e os segmentos
 		/* Liga o display usando um deslocamento de bit para posição indicada pelo vetor que contem os pinos indicados pelo usuário
