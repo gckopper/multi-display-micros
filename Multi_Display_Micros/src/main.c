@@ -151,6 +151,8 @@ int tamanho = 0; // Variavel do tamanho do vetor frase
 
 unsigned int lTempo; // Variavel usada para definir o tempo de cada letra por display
 
+uint8_t unicaVez;
+
 void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 {
 	if (frase != NULL) { // Verifica se o vetor frase é não nulo, pois caso ele seja nulo não haverá mensagem para ser mostrada
@@ -166,6 +168,9 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 		{
 			frase -= (tamanho - 1); // Retorna para antes do primeiro endereço do vetor usando o tamanho dele;
 			count = 0; // Reseta o contador da interrupção
+			if (unicaVez){
+				TIM10 -> DIER &= ~TIM_DIER_UIE;// Desabilitando interrupções através do update do TIM10
+			}
 			return; // Finaliza a exeção da interrupção
 		}
 
@@ -191,10 +196,12 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 	TIM10 -> SR &= ~TIM_SR_UIF; // Zerando o UIF quando a contagem for concluída
 }
 
-void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned int lTime) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso, dPin é um vetor com os valores dos pinos no GPIOC e lTime serve para definir o tempo de cada caracter no display (em ms)
+void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned int lTime, uint8_t interUnicaVez) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso, dPin é um vetor com os valores dos pinos no GPIOC e lTime serve para definir o tempo de cada caracter no display (em ms)
 {
 
-	if (*fEntra == '\0' || *dPin == '\0' || dEntra == 0) {
+	unicaVez = interUnicaVez;
+
+	if (*fEntra == '\0' || *dPin == '\0' || dEntra == 0) { // Caso não esteja bem configurado ele retorna
 		return;
 	}
 
@@ -310,11 +317,11 @@ int main (void)
 
 	uint8_t pin[4] = {8, 9, 10, 11}; // Cria um vetor com os pinos
 
-	displayConf("Hello world!", 4, pin, 1000); // Chama a função displayConf para apresentar a frase "Hello world!"
+	displayConf("Hello world!", 4, pin, 1000, 1); // Chama a função displayConf para apresentar a frase "Hello world!"
 
 	while (*frase != '\0'); // Espera a frase anterior terminar
 
-	displayConf("Ola mundo", 4, pin, 500); // Chama a função displayConf para apresentar a frase "Ola mundo"
+	displayConf("Ola mundo", 4, pin, 500, 1); // Chama a função displayConf para apresentar a frase "Ola mundo"
 
 	// Não faz nada no loop
 	/* Laço de repetição */
