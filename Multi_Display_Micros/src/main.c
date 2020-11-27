@@ -14,7 +14,7 @@
 Este programa realiza a exibição de uma mensagem, configurável por funções e por
 macros, através de um número pré-definido de displays de 7 segmentos. O programa
 realiza isso através da multiplexação dos catodos de cada display. A frequência
-de multiplexação utilizada neste programa é de 200 Hz, podendo-se utilizar, assim
+de multiplexação utilizada neste programa é de 1 kHz, podendo-se utilizar, assim
 até 40 displays para exibir mensagens. As mensagens são exibidas com os caracteres
 descritos na tabela abaixo.
 
@@ -149,11 +149,13 @@ uint8_t nDisplays = 0; // Variavel que armazena o numero de displays
 
 int tamanho = 0; // Variavel do tamanho do vetor frase
 
+unsigned int lTempo; // Variavel usada para definir o tempo de cada letra por display
+
 void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 {
 	if (frase != NULL) { // Verifica se o vetor frase é não nulo, pois caso ele seja nulo não haverá mensagem para ser mostrada
 		// Variáveis Locais
-		static uint8_t count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por contar quantas vezes se passaram 5 ms
+		static unsigned int count = 0; // Variável local, que preserva o valor na próxima chamada da função, responsável por contar quantas vezes se passaram 5 ms
 
 		if (tamanho < 0){ // Caso ele seja inveritido significa que seu valor foi alterado e portanto o contador deve ser resetado
 			count = 0;
@@ -162,8 +164,7 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 
 		if (*frase == '\0') // Caso o seja o ultimo caracter no vetor
 		{
-			frase -= tamanho; // Retorna para antes do primeiro endereço do vetor usando o tamanho dele
-			frase++; // Pula para o primeiro caracter
+			frase -= (tamanho - 1); // Retorna para antes do primeiro endereço do vetor usando o tamanho dele;
 			count = 0; // Reseta o contador da interrupção
 			return; // Finaliza a exeção da interrupção
 		}
@@ -171,14 +172,12 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 		if ((count % nDisplays == 0 && count != 0)) // Ativa quando o contador for um multiplo do número de displays
 		{
 			frase -= nDisplays; // Retorna nDisplays endereços no vetor (para ir para o caracter do primeiro display)
-			if (count == 200) // Entra na condicional quando se passaram 200 vezes os 5 ms ou 1s
+			if (count == lTempo) // Entra na condicional quando se passaram 200 vezes os 5 ms ou 1s
 			{
 				frase++; // Passa para a próxima letra do vetor
 				count = 0; // Zera o contador
 			}
 		}
-
-
 
 		GPIOC -> ODR &= 0xfffff000; // Desliga os displays e os segmentos
 		/* Liga o display usando um deslocamento de bit para posição indicada pelo vetor que contem os pinos indicados pelo usuário
@@ -192,7 +191,7 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 	TIM10 -> SR &= ~TIM_SR_UIF; // Zerando o UIF quando a contagem for concluída
 }
 
-void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso e dPin é um vetor com os valores dos pinos no GPIOC
+void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned int lTime) // fEntra guarda uma sequencia de caracteres para ser mostrada nos displays, dEntrada guarda a quantidade de displays em uso, dPin é um vetor com os valores dos pinos no GPIOC e lTime serve para definir o tempo de cada caracter no display (em ms)
 {
 
 	if (*fEntra == '\0' || *dPin == '\0' || dEntra == 0) {
@@ -208,17 +207,17 @@ void displayConf(const char* fEntra, uint8_t dEntra, uint8_t* dPin) // fEntra gu
 	if (frase == NULL) // Caso o vetor frase esteja nulo significa que é a primeira execução dessa função nem a interrupção nem os timers ainda foram configurados
 	{
 		TIM10 -> DIER |= TIM_DIER_UIE; ; // Habilitando interrupções através do update do TIM10
-		TIM10 -> PSC = 199; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 200 (como delay inicialmente)
-		TIM10 -> ARR = 399; // Auto-reload reiniciando o contador após contar até 399
+		TIM10 -> PSC = 159; // Colocando o Pre-scaller de TIM10 para dividir CK_INT (16 MHz) por 160
+		TIM10 -> ARR = 99; // Auto-reload reiniciando o contador após contar até 99
 		TIM10 -> CR1 |= TIM_CR1_CEN;
+		/* Tem-se, assim, uma contagem para TIM10 que leva 1 ms para ser concluída */
 
-		/* Tem-se, assim, uma contagem para TIM10 que leva 5 ms para ser concluída */
 		NVIC_SetPriority (TIM1_UP_TIM10_IRQn, 0); // Colocando a prioridade da interrupção de TIM10 como segunda prioridade
 		NVIC_EnableIRQ (TIM1_UP_TIM10_IRQn); // Habilitando a interrupção por hardware através do TIM10
 	}
 
+	lTempo = lTime; // Passando o tempo configurado para a variável global
 	int backupTamanho = tamanho; // Salva uma copia do tamanho
-
 	tamanho = 0; // Zera o tamanho do vetor frase para trocar seu valor
 	while (*fEntra != '\0') // Executa até o fim do vetor
 	{
@@ -311,11 +310,11 @@ int main (void)
 
 	uint8_t pin[4] = {8, 9, 10, 11}; // Cria um vetor com os pinos
 
-	displayConf("Hello world!", 4, pin); // Chama a função displayConf para apresentar a frase "Hello world!"
+	displayConf("Hello world!", 4, pin, 1000); // Chama a função displayConf para apresentar a frase "Hello world!"
 
 	while (*frase != '\0'); // Espera a frase anterior terminar
 
-	displayConf("Ola mundo", 4, pin); // Chama a função displayConf para apresentar a frase "Ola mundo"
+	displayConf("Ola mundo", 4, pin, 500); // Chama a função displayConf para apresentar a frase "Ola mundo"
 
 	// Não faz nada no loop
 	/* Laço de repetição */
