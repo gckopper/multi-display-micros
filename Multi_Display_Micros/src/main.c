@@ -205,7 +205,7 @@ void TIM1_UP_TIM10_IRQHandler (void) // Quando o bit UIF de TIM10 virar 1
 }
 
 /* Corpo de Funções Customizadas */
-void displayConf (const char* fEntra, uint8_t dEntra, uint8_t* dPin, unsigned int lTime, const char selectMode)
+void displayConf (const char* fEntra, uint8_t dEntra, const uint8_t* dPin, unsigned int lTime, const char selectMode)
 {
 /*
    Parâmetros da função:
@@ -350,13 +350,13 @@ int main (void)
 
 	GPIOC -> MODER |= 0x555555; // Configurando PC0 até PC11 como saídas digitais
 
-	uint8_t pin [4] = {8, 9, 10, 11}; // Criando um vetor com os pinos de controle da GPIOC
+	const uint8_t controlArray [] = {8, 9, 10, 11}; // Constante configurável com os pinos da GPIOC a serem usados
 
-	displayConf ("Hello world!", 4, pin, 300, 'u'); // Chamando a função displayConf para apresentar a frase "Hello world!" em 4 displays, 300 s por display, por uma única vez
+	displayConf ("Hello world!", 4, controlArray, 500, 'c'); // Chamando a função displayConf para apresentar a frase "Hello world!" em 4 displays, 300 s por display, por uma única vez
 
 	while (*frase != '\0'); // Esperando a frase anterior terminar
 
-	displayConf ("Ola mundo", 4, pin, 700, 'c'); // Chamando a função displayConf para apresentar a frase "Ola mundo" em 4 displays, 700 ms por display, por uma única vez
+	displayConf ("Ola mundo", 4, controlArray, 700, 'c'); // Chamando a função displayConf para apresentar a frase "Ola mundo" em 4 displays, 700 ms por display, por uma única vez
 
 	/* Laço de Repetição */
 	while (1); // Não faz nada no loop
